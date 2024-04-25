@@ -1,0 +1,142 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+  relationMode = "prisma"
+}
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "fullTextIndex"]
+}
+
+model Course {
+  id String @id @default(uuid())
+  userId String
+  title String @db.Text
+  description String? @db.Text
+  imageUrl String? @db.Text
+  price Float?
+  // isPublished 할 때, description, imageUrl, price 검사하면 되기 때문에, optional로 설정
+  isPublished Boolean @default(false)
+
+  categoryId String?
+  category Category? @relation(fields: [categoryId], references: [id])
+
+  chapters    Chapter[]
+  attachments Attachment[]
+  purchases   Purchase[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@fulltext([title])
+}
+
+// @@index 지시어는 데이터베이스 내에서 categoryId 필드에 인덱스를 생성합니다. 인덱스를 사용하면 해당 필드를 기반으로 데이터 검색, 쿼리, 조인 작업이 더 빨라집니다. 예를 들어, Course 테이블에서 특정 카테고리 ID를 가진 코스를 자주 조회하는 경우, categoryId에 인덱스가 있으면 이 조회 작업이 훨씬 빨라집니다. 하지만 인덱스는 읽기 작업을 가속화하는 반면 쓰기 작업(삽입, 업데이트, 삭제)은 느려질 수 있습니다.
+// 인덱스는 데이터 검색 속도를 빠르게 하지만, 데이터베이스에 새로운 데이터를 추가하거나 기존 데이터를 수정, 삭제할 때마다 인덱스도 함께 업데이트 해야 합니다. 이 과정에서 추가적인 시간이 소요되기 때문에, 쓰기 작업의 속도가 느려지게 됩니다. 예를 들어, 새로운 코스를 Course 테이블에 추가할 때, categoryId에 대한 인덱스도 새로운 정보에 맞게 업데이트 되어야 하므로 이로 인한 시간 지연이 발생할 수 있습니다.
+
+model Category {
+  id String @id @default(uuid())
+  name String @unique
+  courses Course[]
+}
+
+model Attachment {
+  id String @id @default(uuid())
+  name String
+  url String @db.Text
+
+  courseId String
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([courseId])
+}
+
+// 네, 맞습니다. `Attachment` 모델은 특정 `Course`에 관련된 추가적인 파일이나 자료를 의미합니다. 이 모델은 각각의 첨부 파일이나 자료에 대한 정보를 저장하는데 사용되며, `courseId` 필드를 통해 특정 `Course`와 관계가 맺어져 있습니다. `onDelete: Cascade` 옵션은 해당 `Course`가 삭제될 때, 연관된 모든 `Attachment`도 함께 삭제되도록 설정되어 있습니다.
+
+
+
+model Chapter {
+  id          String  @id @default(uuid())
+  title       String
+  description String? @db.Text
+  videoUrl    String? @db.Text
+  position    Int
+  isPublished Boolean @default(false)
+  isFree      Boolean @default(false)
+
+  muxData MuxData?
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  userProgress UserProgress[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([courseId])
+}
+
+model MuxData {
+  id         String  @id @default(uuid())
+  assetId    String
+  playbackId String?
+
+  chapterId String  @unique
+  chapter   Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+}
+
+model UserProgress {
+  id     String @id @default(uuid())
+  userId String
+
+  chapterId String
+  chapter   Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  isCompleted Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+// userId + chapterId 콤비를 unique하게 만들고자
+  @@unique([userId, chapterId])
+  @@index([chapterId])
+}
+
+model Purchase {
+  id     String @id @default(uuid())
+  userId String
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt()
+
+  @@unique([userId, courseId])
+  @@index([courseId])
+}
+
+model StripeCustomer {
+  id               String @id @default(uuid())
+  userId           String @unique
+  stripeCustomerId String @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// npx prisma generate
+// npx push db push
+// npx prisma studio
